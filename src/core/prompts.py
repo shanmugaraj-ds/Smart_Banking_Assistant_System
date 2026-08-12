@@ -12,89 +12,72 @@ Classification must be based primarily on the CURRENT USER QUESTION.
 Do not use retrieved documents, SQL results, previous assistant answers,
 or previous conversation answers to decide the classification.
 
+
 1. conversation
-Choose "conversation" for casual conversation that does not require
-banking knowledge, banking policy documents, or customer database data.
-Examples:
-Question: Hello
-Answer: conversation
+Choose "conversation" for casual conversation that does not require banking knowledge or database.
+For:
+- greetings
+- user introduction
+- remembering user's name
+- thanks
+- casual conversation
 
-Question: Hi
-Answer: conversation
-
-Question: Good morning
-Answer: conversation
-
-Question: How are you?
-Answer: conversation
-
-Question: Thanks
-Answer: conversation
-
-Question: Thank you
-Answer: conversation
-
-Question: My name is John
-Answer: conversation
-
-Question: What is my name?
-Answer: conversation
-
-Question: Nice to meet you
-Answer: conversation
-
-Question: Bye
-Answer: conversation
 
 IMPORTANT:
-conversation MUST NOT call RAG tools.
-conversation MUST NOT call SQL tools.
-conversation MUST NOT call vector search.
-conversation MUST NOT call FTS search.
-conversation MUST NOT call reranker.
+Use previous chat history always for conversation.
+conversation MUST NOT call any tool.
+
 
 2. OUT_OF_SCOPE
 Choose "out_of_scope" when the question is unrelated to the
 Smart Banking Assistant's capabilities.
 
+
 Examples:
+
 
 Question: What is the weather today?
 Answer: out_of_scope
 
+
 Question: Who will win the cricket match?
 Answer: out_of_scope
+
 
 Question: Tell me a joke.
 Answer: out_of_scope
 
+
 Question: Write Python code for me.
 Answer: out_of_scope
+
 
 Question: What happened in politics today?
 Answer: out_of_scope
 
+
 Question: Give me a travel itinerary.
 Answer: out_of_scope
+
 
 Question: How do I cook pasta?
 Answer: out_of_scope
 
+
 Question: What is the capital of France?
 Answer: out_of_scope
 
+
 IMPORTANT:
-Out-of-scope MUST NOT call RAG tools.
-Out-of-scope MUST NOT call SQL tools.
-Out-of-scope MUST NOT call vector search.
-Out-of-scope MUST NOT call FTS search.
-Out-of-scope MUST NOT call reranker.
+Out-of-scope MUST NOT call any tool.
+
 
 3. RAG
 Use RAG when the query requires information from banking documents,
 products, policies, procedures, FAQs, loan details, card details,
 terms and conditions, eligibility, documentation requirements,
 or regulatory information.
+
 
 Examples:
 - Home loan products
@@ -104,31 +87,41 @@ Examples:
 - Loan tenure details
 - KYC requirements
 
+
 Examples:
+
 
 Question: Explain KYC.
 Answer: rag
 
+
 Question: What are foreclosure charges?
 Answer: rag
+
 
 Question: Explain auction norms for gold loans.
 Answer: rag
 
+
 Question: What are home loan eligibility criteria?
 Answer: rag
+
 
 Question: Explain FD premature withdrawal rules.
 Answer: rag
 
+
 Question: What are credit card international transaction charges?
 Answer: rag
+
 
 4. SQL
 Choose "sql" when the answer depends ONLY on customer-specific
 data stored in the read-only core banking database.
 
+
 The core banking database contains customer/account data such as:
+
 
 * accounts
 * card_transactions
@@ -137,28 +130,38 @@ The core banking database contains customer/account data such as:
 * transactions
 * loan_accounts
 
+
 Examples:
+
 
 Question: Show my account balance.
 Answer: sql
 
+
 Question: Show my last 10 transactions.
 Answer: sql
+
 
 Question: Show my credit cards.
 Answer: sql
 
+
 Question: List my fixed deposits.
 Answer: sql
+
 
 Question: Show my loan account.
 Answer: sql
 
+
 Question: Show my EMI schedule.
 Answer: sql
 
+
 Question: Show my card transactions.
 Answer: sql
+
+
 
 
 5. HYBRID
@@ -169,23 +172,28 @@ AND
    from the RAG knowledge base.
 Examples:
 
+
 Question: Show my home loan balance and explain foreclosure policy.
 Answer: hybrid
+
 
 Question: Show my FD details and explain premature withdrawal rules.
 Answer: hybrid
 
+
 Question: Show my credit card details and international transaction charges.
 Answer: hybrid
 
+
 Question: Show my loan account and explain RBI foreclosure guidelines.
 Answer: hybrid
+
 
 6. ROUTING DECISION
 Use this decision order:
 STEP 1:
 Is this casual conversation, greeting, thanks, introduction, or goodbye?
-YES -> chitchat
+YES -> conversation
 STEP 2:
 Is this unrelated to Smart Banking Assistant capabilities?
 YES -> out_of_scope
@@ -199,6 +207,7 @@ STEP 5:
 Does the answer require BOTH customer-specific database information
 AND banking document/policy knowledge?
 YES -> hybrid
+
 
 7. IMPORTANT DISTINCTIONS
 "Hello"
@@ -225,6 +234,8 @@ YES -> hybrid
 -> hybrid
 
 
+
+
 -> Short banking keywords must NOT be classified as out_of_scope.
 Examples:
 "Home Loan" → rag
@@ -234,22 +245,26 @@ Examples:
 "Loan" → rag
 "PAN Card" → rag
 
+
 8. FINAL RULE
 Never classify a greeting or casual conversation as rag, sql, or hybrid.
 Never classify an out-of-scope question as rag, sql, or hybrid.
 Do not classify based only on banking keywords.
 
-Return ONLY ONE exact value:
 
+Return ONLY ONE exact value:
 rag
 sql
 hybrid
-chitchat
+conversation
 out_of_scope
+
 
 Question:
 {question}
 """
+
+
 
 
 SQL_GENERATOR_PROMPT = """
@@ -263,11 +278,14 @@ Rules:
 5. Do not include markdown or explanations.
 6. Return only the SQL query.
 
+
 Database Schema:
 {schema}
 User Question:
 {question}
 """
+
+
 
 
 SQL_VALIDATOR_PROMPT = """
@@ -288,10 +306,14 @@ Rules:
 3. Do not modify correct SQL.
 4. Return ONLY the validated SQL query.
 
+
 Generated SQL:
+
 
 {sql_query}
 """
+
+
 
 
 RESPONSE_GENERATOR_PROMPT = """
@@ -312,18 +334,24 @@ Rules:
 12. If the SQL result does not contain a requested customer attribute,
 13. explicitly state that the attribute is not available in the database result.
 
+
 Question:
 {question}
+
 
 Query Type:
 {query_type}
 
+
 SQL Result:
 {sql_result}
+
 
 Retrieved Context:
 {context}
 """
+
+
 
 
 QUERY_REWRITE_PROMPT = """
@@ -337,13 +365,19 @@ Rules:
 - Return only the query.
 - be suitable for semantic and keyword search
 
+
 Original question:
 {question}
 Return only the rewritten search query.
 
+
 Current search query:
 {search_query}
+
 
 Previous alternate queries:
 {previous_queries}
 """
+
+
+

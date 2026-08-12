@@ -16,6 +16,8 @@ from src.api.v1.tools.sql_tool import (
 )
 
 
+
+
 def conversation_node(state: RAGState) -> RAGState:
     state["answer"] = (
         "Hello! I can help you with Smart Banking related "
@@ -24,6 +26,8 @@ def conversation_node(state: RAGState) -> RAGState:
         "and related information."
     )
     return state
+
+
 
 
 def route_query(state: RAGState):
@@ -40,6 +44,8 @@ def route_query(state: RAGState):
     return query_type
 
 
+
+
 def out_of_scope_node(state: RAGState) -> RAGState:
     state["answer"] = (
         "I can help with Smart Banking related questions, "
@@ -49,7 +55,11 @@ def out_of_scope_node(state: RAGState) -> RAGState:
     return state
 
 
+
+
 RETRY_THRESHOLD = 0.50
+
+
 
 
 def check_retrieval(state: RAGState):
@@ -73,6 +83,8 @@ def check_retrieval(state: RAGState):
     return "response"
 
 
+
+
 def retry_search_node(state: RAGState) -> RAGState:
     """
     Generates an alternate search query.
@@ -94,6 +106,8 @@ def retry_search_node(state: RAGState) -> RAGState:
     return state
 
 
+
+
 def route_after_retry(state: RAGState):
     """
     After query rewriting, return to the appropriate
@@ -108,12 +122,16 @@ def route_after_retry(state: RAGState):
     return "search"
 
 
+
+
 def hybrid_search_node(state: RAGState) -> RAGState:
     """
     Executes the RAG portion of a hybrid query.
     Vector -> FTS -> RRF -> Reranker
     """
     return search_tool(state)
+
+
 
 
 def sql_pipeline_node(state: RAGState) -> RAGState:
@@ -127,12 +145,16 @@ def sql_pipeline_node(state: RAGState) -> RAGState:
     return state
 
 
+
+
 def merge_context_tool(state: RAGState) -> RAGState:
     """
     Combines RAG and SQL results for hybrid queries.
     """
     state["reranked_chunks"]
     return state
+
+
 
 
 def build_graph():
@@ -148,6 +170,7 @@ def build_graph():
     workflow.add_node("merge_context", merge_context_tool)
     workflow.add_node("response_generator", response_generator_tool)
     workflow.add_node("out_of_scope", out_of_scope_node)
+
 
     workflow.add_edge(START, "classifier")
     workflow.add_conditional_edges(
@@ -188,10 +211,12 @@ def build_graph():
     workflow.add_edge("sql_generator", "sql_validator")
     workflow.add_edge("sql_validator", "sql_executor")
 
+
     def route_after_sql(state: RAGState):
         if state["query_type"] == "hybrid":
             return "merge_context"
         return "response"
+
 
     workflow.add_conditional_edges(
         "sql_executor",
@@ -206,14 +231,20 @@ def build_graph():
     workflow.add_edge("conversation", END)
     workflow.add_edge("out_of_scope", END)
 
+
     return workflow.compile()
+
+
 
 
 banking_agent = build_graph()
 
+
 graph_image = banking_agent.get_graph().draw_mermaid_png()
 with open("banking_agent.png", "wb") as f:
     f.write(graph_image)
+
+
 
 
 def invoke(question: str):
@@ -239,4 +270,8 @@ def invoke(question: str):
         final_context=dict,
     )
 
+
     return banking_agent.invoke(state)
+
+
+
