@@ -29,6 +29,13 @@ st.caption(
 )
 # SIDEBAR
 with st.sidebar:
+    st.header("Customer Details")
+    account_id = st.text_input(
+        "Account ID",
+        value="",
+        placeholder="Enter account ID",
+    )
+    st.divider()
     st.header("Knowledge Base")
     st.write("Upload a Smart Banking PDF " "to the RAG knowledge base.")
     st.divider()
@@ -79,6 +86,7 @@ with st.sidebar:
         use_container_width=True,
     ):
         st.session_state.messages = []
+        st.session_state.thread_id = str(uuid.uuid4())
         st.rerun()
 for message in st.session_state.messages:
     role = message["role"]

@@ -34,10 +34,12 @@ class RetrievedChunk(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
-    chat_history: list = []
+    account_id: str | None = None
+    thread_id: str = "default-thread"
 
 
 class QueryResponse(BaseModel):
+    type: str
     answer: str
     query_type: str
     citations: list[str] = []

@@ -71,6 +71,18 @@ from src.core.prompts import RESPONSE_GENERATOR_PROMPT
 
 
 def response_generator_tool(state: RAGState) -> RAGState:
+    """
+    Generates the final grounded response.
+    RAG:
+        Uses reranked_chunks.
+    SQL:
+        Uses sql_result.
+    Hybrid:
+        Uses final_context containing both
+        RAG and SQL context.
+    """
+    query_type = state.get("query_type", "")
+    print("RESPONSE QUERY TYPE:", query_type)
     reranked_chunks = state.get("reranked_chunks", [])
     print("RERANKED CHUNKS:", len(reranked_chunks))
     context = "\n\n".join(chunk.get("content", "") for chunk in reranked_chunks)
@@ -89,14 +101,20 @@ def response_generator_tool(state: RAGState) -> RAGState:
     result = response_chain.invoke(
         {
             "question": state["question"],
-            "query_type": state["query_type"],
-            "context": context,
-            "sql_result": state.get("sql_result", []),
+            "query_type": query_type,
+            "context": rag_context,
+            "sql_result": sql_result,
         }
     )
     print("RAW RESULT:", result)
     state["answer"] = result.answer
     state["citations"] = result.citations
+    if reranked_chunks:
+        best_rerank_score = max(
+            chunk.get("rerank_score", 0.0) for chunk in reranked_chunks
+        )
+    else:
+        best_rerank_score = 0.0
     state["confidence_score"] = result.confidence_score
     return state
 

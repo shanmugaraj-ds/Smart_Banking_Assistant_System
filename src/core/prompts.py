@@ -9,8 +9,11 @@ of these categories:
 * hybrid
 IMPORTANT:
 Classification must be based primarily on the CURRENT USER QUESTION.
-Do not use retrieved documents, SQL results, previous assistant answers,
-or previous conversation answers to decide the classification.
+Previous chat history may be used ONLY to understand conversational
+context, references, or follow-up questions.
+Do NOT use retrieved documents, SQL results, previous assistant answers,
+or tool outputs to determine classification.
+The classifier must decide the route BEFORE RAG or SQL tools are called.
 
 
 1. conversation
@@ -233,6 +236,9 @@ YES -> hybrid
 "Show my credit card and explain international transaction charges"
 -> hybrid
 
+8. FOLLOW-UP QUESTIONS
+Use chat history to understand short or incomplete follow-up questions.
+Example conversation:
 
 
 
@@ -262,25 +268,51 @@ out_of_scope
 
 Question:
 {question}
+
+CHAT HISTORY:
+{chat_history}
 """
 
 
 
 
 SQL_GENERATOR_PROMPT = """
-You are an expert PostgreSQL query generator for a banking system.
-Your job is to generate ONLY a valid PostgreSQL SELECT query.
-Rules:
-1. Generate ONLY SELECT statements.
-2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE or GRANT.
-3. Use only the provided database schema.
-4. Do not assume tables or columns that are not present.
-5. Do not include markdown or explanations.
-6. Return only the SQL query.
+CUSTOMER CONTEXT:
+The current customer ID is:
+{account_id}
+
+IMPORTANT CUSTOMER-SCOPING RULE:
+If the user asks for customer-specific information using words such as:
+- my
+- me
+- mine
+- my account
+- my loan
+- my credit card
+- my transactions
+
+then the generated SQL MUST restrict the query to the current customer.
+Use the current customer ID:
+{account_id}
+to filter the appropriate customer/account column.
+Examples:
+If the table contains account_id:
+WHERE account_id = '{account_id}'
+If the table contains customer_id:
+WHERE customer_id = '{account_id}'
+If the table contains a relationship between customer and account,
+use the appropriate JOIN and filter using the current customer ID.
+NEVER return records belonging to other customers when the user asks
+for "my" information.
+If customer-specific information is requested but customer_id is
+missing, do NOT guess a customer. Return a query that cannot expose
+other customers, or indicate that customer identification is required.
 
 
 Database Schema:
 {schema}
+Current Customer ID:
+{account_id}
 User Question:
 {question}
 """
@@ -291,20 +323,28 @@ User Question:
 SQL_VALIDATOR_PROMPT = """
 You are a PostgreSQL security validator.
 Your task is to validate the generated SQL query.
-Rules:
-1. ONLY SELECT statements are allowed.
-2. Reject:
-- INSERT
-- UPDATE
-- DELETE
-- DROP
-- ALTER
-- CREATE
-- TRUNCATE
-- GRANT
-- REVOKE
-3. Do not modify correct SQL.
-4. Return ONLY the validated SQL query.
+IMPORTANT RULES:
+
+1. Generate READ-ONLY PostgreSQL queries only.
+2. The query must retrieve customer/account-specific
+   information from the core banking database.
+3. Do NOT determine banking policy, eligibility,
+   regulatory requirements, fees, charges, or procedures
+   from SQL.
+4. Those policy-related questions are handled by RAG.
+5. For a hybrid question, SQL should retrieve ONLY the
+   customer-specific database information required by
+   the question.
+6. Never calculate or invent eligibility criteria using SQL
+   unless the requested value is explicitly stored in the
+   database.
+7. The account identifier is account_id.
+8. Never use customer_id.
+9. If account_id is available in the state/request, use it.
+10. Only generate SELECT or WITH ... SELECT statements.
+11. Never generate INSERT, UPDATE, DELETE, DROP, ALTER,
+    CREATE, TRUNCATE, GRANT, or REVOKE.
+12. Do not generate explanatory text outside the SQL query.
 
 
 Generated SQL:
