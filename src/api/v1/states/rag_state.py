@@ -1,4 +1,6 @@
 from typing import TypedDict, List, Dict, Any
+from typing import Annotated
+from langgraph.graph.message import add_messages
 
 
 class RAGState(TypedDict, total=False):
@@ -6,7 +8,7 @@ class RAGState(TypedDict, total=False):
     search_query: str
     account_id: str | None
     query_type: str
-    chat_history: List[Dict[str, Any]]
+    chat_history: Annotated[list, add_messages]
     retrieved_chunks: List[Dict[str, Any]]  # RAG Pipeline
     fts_chunks: List[Dict[str, Any]]  # RAG Pipeline
     hybrid_chunks: List[Dict[str, Any]]  # RAG Pipeline

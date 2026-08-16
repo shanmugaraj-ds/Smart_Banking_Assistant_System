@@ -2,6 +2,8 @@ import os
 from langgraph.graph import StateGraph, START, END
 from src.api.v1.states.rag_state import RAGState
 from src.core.llm import get_llm
+from langchain_core.messages import HumanMessage, AIMessage
+from src.core.checkpointer import checkpointer
 from src.api.v1.tools.classifier_tool import classifier_tool
 from src.api.v1.tools.search_tool import (
     search_tool,
@@ -20,12 +22,6 @@ from src.api.v1.tools.sql_tool import (
 def route_query(state: RAGState):
     """
     Routes the classified query to the appropriate graph path.
-    Supported query types:
-        conversation
-        out_of_scope
-        rag
-        sql
-        hybrid
     """
     query_type = state.get("query_type", "out_of_scope")
     allowed_types = {
@@ -42,26 +38,35 @@ def route_query(state: RAGState):
 
 def conversation_node(state: RAGState) -> RAGState:
     llm = get_llm()
-    history = state.get("chat_history", [])
+    history = state.get("chat_history") or []
+    print("CONVERSATION HISTORY:", history)
     messages = [
         {
             "role": "system",
             "content": """
-        You are a Smart Banking Assistant.
-        For conversation queries:
-        - Use the conversation history.
-        - Answer questions about information already provided by the user.
-        - Remember the user's name if they provided it.
-        - Do not use RAG.
-        - Do not use SQL.
-        - Do not invent information.
-        """,
+            You are a Smart Banking Assistant.
+            For conversation queries:
+            - Use the conversation history.
+            - Remember information explicitly provided by the user.
+            - If the user says anything remember that name.
+            - If the user asks answer using the conversation history.
+            - Do not use RAG.
+            - Do not use SQL.
+            - Do not invent information.
+            """,
         }
     ]
     messages.extend(history)
+    messages.append({"role": "user", "content": state["question"]})
     response = llm.invoke(messages)
-    state["answer"] = response.content
+    answer = response.content
+    state["answer"] = answer
     state["confidence_score"] = 1.0
+    # Persist this turn
+    history.append(HumanMessage(content=state["question"]))
+    history.append(AIMessage(content=answer))
+    state["chat_history"] = history
+    # print("CONVERSATION RESPONSE:", repr(answer))
     return state
 
 
@@ -249,7 +254,7 @@ def build_graph():
     workflow.add_edge("conversation", END)
     workflow.add_edge("out_of_scope", END)
 
-    return workflow.compile()
+    return workflow.compile(checkpointer=checkpointer)
 
 
 banking_agent = build_graph()
@@ -262,13 +267,10 @@ with open("banking_agent.png", "wb") as f:
 
 def invoke(
     question: str,
-    chat_history=None,
     account_id: str | None = None,
+    thread_id: str | None = None,
 ):
-    print("INVOKE QUESTION:", question)
-    print("INVOKE ACCOUNT ID:", repr(account_id))
-    if chat_history is None:
-        chat_history = []
+
     state = RAGState(
         question=question,
         search_query=question,
@@ -282,7 +284,6 @@ def invoke(
         sql_query="",
         validated_sql="",
         sql_result=[],
-        chat_history=chat_history,
         answer="",
         citations=[],
         response_sources=[],
@@ -292,8 +293,12 @@ def invoke(
         final_context={},
         trace_id="",
     )
-    print(
-        "STATE ACCOUNT ID:",
-        repr(state.get("account_id")),
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+        }
+    }
+    return banking_agent.invoke(
+        state,
+        config=config,
     )
-    return banking_agent.invoke(state)

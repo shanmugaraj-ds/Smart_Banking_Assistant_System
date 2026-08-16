@@ -1,3 +1,4 @@
+import uuid
 import json
 import streamlit as st
 import requests
@@ -11,7 +12,8 @@ st.set_page_config(
     layout="wide",
 )
 
-
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = str(uuid.uuid4())
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "uploaded_file_name" not in st.session_state:
@@ -28,7 +30,7 @@ with st.sidebar:
     st.header("Customer Details")
     account_id = st.text_input(
         "Account ID",
-        value="1345367",
+        value="",
         placeholder="Enter account ID",
     )
     st.divider()
@@ -82,6 +84,7 @@ with st.sidebar:
         use_container_width=True,
     ):
         st.session_state.messages = []
+        st.session_state.thread_id = str(uuid.uuid4())
         st.rerun()
 for message in st.session_state.messages:
     role = message["role"]
@@ -119,14 +122,6 @@ if question:
     )
     with st.chat_message("user"):
         st.markdown(question)
-    # Chat history
-    chat_history = [
-        {
-            "role": message["role"],
-            "content": message["content"],
-        }
-        for message in st.session_state.messages
-    ]
     # Assistant
     with st.chat_message("assistant"):
         try:
@@ -134,8 +129,8 @@ if question:
                 QUERY_STREAM_API_URL,
                 json={
                     "question": question,
-                    "chat_history": chat_history,
                     "account_id": account_id.strip() if account_id else None,
+                    "thread_id": st.session_state.thread_id,
                 },
                 stream=True,
                 timeout=300,
@@ -155,14 +150,12 @@ if question:
                     continue
                 event = json.loads(data)
                 event_type = event.get("type")
-                # STATUS
                 if event_type == "status":
                     message = event.get(
                         "message",
                         "Processing...",
                     )
                     status_placeholder.info(message)
-                # COMPLETE
                 elif event_type == "complete":
                     final_result = event
                     status_placeholder.empty()
@@ -172,7 +165,6 @@ if question:
                     )
                     if answer:
                         answer_placeholder.markdown(answer)
-                    # Images
                     images = event.get(
                         "images",
                         [],
@@ -185,14 +177,12 @@ if question:
                                 caption="Related image",
                                 use_container_width=True,
                             )
-                    # Query type
                     query_type = event.get(
                         "query_type",
                         "",
                     )
                     if query_type:
                         st.caption("Query type: " f"{query_type.upper()}")
-                    # Citations
                     citations = event.get(
                         "citations",
                         [],
@@ -201,11 +191,9 @@ if question:
                         with st.expander("Sources / Citations"):
                             for citation in citations:
                                 st.markdown(f"- {citation}")
-                    # Confidence
                     confidence_score = event.get("confidence_score")
                     if confidence_score is not None:
                         st.caption("Confidence: " f"{float(confidence_score):.2f}")
-                # ERROR
                 elif event_type == "error":
                     status_placeholder.empty()
                     st.error(
@@ -214,35 +202,23 @@ if question:
                             "Unknown error",
                         )
                     )
-            # Save complete assistant response
             if final_result:
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": final_result.get(
-                            "answer",
-                            "",
-                        ),
-                        "query_type": final_result.get(
-                            "query_type",
-                            "",
-                        ),
-                        "citations": final_result.get(
-                            "citations",
-                            [],
-                        ),
-                        "confidence_score": (
-                            final_result.get(
-                                "confidence_score",
-                                0,
-                            )
-                        ),
-                        "images": final_result.get(
-                            "images",
-                            [],
-                        ),
-                    }
-                )
+                answer = final_result.get("answer", "").strip()
+                if answer:
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": final_result.get("answer", ""),
+                            "query_type": final_result.get("query_type", ""),
+                            "citations": final_result.get("citations", []),
+                            "confidence_score": (
+                                final_result.get("confidence_score", 0)
+                            ),
+                            "images": final_result.get("images", []),
+                        }
+                    )
+                else:
+                    st.error("The agent completed without returning an answer.")
         except requests.exceptions.Timeout:
             st.error("The request timed out. " "Please try again.")
         except requests.exceptions.ConnectionError:

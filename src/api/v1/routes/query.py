@@ -5,6 +5,7 @@ from src.api.v1.schemas.query_schema import (
     QueryRequest,
     QueryResponse,
 )
+from src.api.v1.agents.agents import banking_agent
 from src.api.v1.services.query_service import (
     query_documents,
     query_documents_stream,
@@ -25,29 +26,26 @@ async def query(request: QueryRequest):
     return query_documents(
         request.question,
         account_id=request.account_id,
-        chat_history=request.chat_history,
+        thread_id=request.thread_id,
     )
 
 
-# STREAMING QUERY
 @router.post("/stream")
 async def query_stream(
     request: QueryRequest,
 ):
-    async def event_generator():
+    def event_generator():
         try:
-            async for event in query_documents_stream(
-                request.question,
+            for event in query_documents_stream(
+                question=request.question,
                 account_id=request.account_id,
-                chat_history=request.chat_history,
+                thread_id=request.thread_id,
             ):
-                yield (f"data: " f"{json.dumps(event)}" f"\n\n")
-        except Exception as e:
-            error_event = {
-                "type": "error",
-                "message": str(e),
-            }
-            yield (f"data: " f"{json.dumps(error_event)}" f"\n\n")
+                yield (f"data: {json.dumps(event, default=str)}\n\n")
+        except Exception as error:
+            print("STREAM ROUTE ERROR:", repr(error))
+            error_event = {"type": "error", "message": str(error)}
+            yield (f"data: {json.dumps(error_event)}\n\n")
 
     return StreamingResponse(
         event_generator(),
