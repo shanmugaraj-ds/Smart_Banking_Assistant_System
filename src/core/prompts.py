@@ -15,6 +15,7 @@ Do NOT use retrieved documents, SQL results, previous assistant answers,
 or tool outputs to determine classification.
 The classifier must decide the route BEFORE RAG or SQL tools are called.
 
+
 1. conversation
 Choose "conversation" for casual conversation that does not require banking knowledge or database.
 For:
@@ -24,89 +25,106 @@ For:
 - thanks
 - casual conversation
 
+
 IMPORTANT:
-conversation quiries MUST NOT call any tool.
+Use previous chat history always for conversation.
+conversation MUST NOT call any tool.
+
 
 2. OUT_OF_SCOPE
 Choose "out_of_scope" when the question is unrelated to the
 Smart Banking Assistant's capabilities.
 
+
 Examples:
+
 
 Question: What is the weather today?
 Answer: out_of_scope
 
+
 Question: Who will win the cricket match?
 Answer: out_of_scope
+
 
 Question: Tell me a joke.
 Answer: out_of_scope
 
+
 Question: Write Python code for me.
 Answer: out_of_scope
+
 
 Question: What happened in politics today?
 Answer: out_of_scope
 
+
 Question: Give me a travel itinerary.
 Answer: out_of_scope
+
 
 Question: How do I cook pasta?
 Answer: out_of_scope
 
+
 Question: What is the capital of France?
 Answer: out_of_scope
+
 
 IMPORTANT:
 Out-of-scope MUST NOT call any tool.
 
-3. RAG
-Choose "rag" when the answer requires information from the
-Smart Banking knowledge base or banking documents.
 
-This includes:
-- banking products
-- banking policies
-- procedures
-- FAQs
-- loan information
-- card information
-- terms and conditions
-- eligibility criteria
-- documentation requirements
-- charges
-- fees
-- rules
-- regulatory information
-- RBI guidelines
-- KYC information
-- product features
+3. RAG
+Use RAG when the query requires information from banking documents,
+products, policies, procedures, FAQs, loan details, card details,
+terms and conditions, eligibility, documentation requirements,
+or regulatory information.
+
 
 Examples:
+- Home loan products
+- Gold loan auction rules
+- Credit card eligibility
+- Required documents for personal loan
+- Loan tenure details
+- KYC requirements
+
+
+Examples:
+
 
 Question: Explain KYC.
 Answer: rag
 
+
 Question: What are foreclosure charges?
 Answer: rag
+
 
 Question: Explain auction norms for gold loans.
 Answer: rag
 
+
 Question: What are home loan eligibility criteria?
 Answer: rag
+
 
 Question: Explain FD premature withdrawal rules.
 Answer: rag
 
+
 Question: What are credit card international transaction charges?
 Answer: rag
+
 
 4. SQL
 Choose "sql" when the answer depends ONLY on customer-specific
 data stored in the read-only core banking database.
 
+
 The core banking database contains customer/account data such as:
+
 
 * accounts
 * card_transactions
@@ -115,28 +133,38 @@ The core banking database contains customer/account data such as:
 * transactions
 * loan_accounts
 
+
 Examples:
+
 
 Question: Show my account balance.
 Answer: sql
 
+
 Question: Show my last 10 transactions.
 Answer: sql
+
 
 Question: Show my credit cards.
 Answer: sql
 
+
 Question: List my fixed deposits.
 Answer: sql
+
 
 Question: Show my loan account.
 Answer: sql
 
+
 Question: Show my EMI schedule.
 Answer: sql
 
+
 Question: Show my card transactions.
 Answer: sql
+
+
 
 
 5. HYBRID
@@ -147,19 +175,41 @@ AND
    from the RAG knowledge base.
 Examples:
 
+
 Question: Show my home loan balance and explain foreclosure policy.
 Answer: hybrid
+
 
 Question: Show my FD details and explain premature withdrawal rules.
 Answer: hybrid
 
+
 Question: Show my credit card details and international transaction charges.
 Answer: hybrid
+
 
 Question: Show my loan account and explain RBI foreclosure guidelines.
 Answer: hybrid
 
+
 6. ROUTING DECISION
+Use this decision order:
+STEP 1:
+Is this casual conversation, greeting, thanks, introduction, or goodbye?
+YES -> conversation
+STEP 2:
+Is this unrelated to Smart Banking Assistant capabilities?
+YES -> out_of_scope
+STEP 3:
+Does the answer require ONLY banking document/policy knowledge?
+YES -> rag
+STEP 4:
+Does the answer require ONLY customer-specific database information?
+YES -> sql
+STEP 5:
+Does the answer require BOTH customer-specific database information
+AND banking document/policy knowledge?
+YES -> hybrid
 
 
 7. IMPORTANT DISTINCTIONS
@@ -190,39 +240,23 @@ Answer: hybrid
 Use chat history to understand short or incomplete follow-up questions.
 Example conversation:
 
-User: Explain home loan eligibility.
-Assistant: [previous response]
-User: What about the documents?
-Answer: rag
-Example:
-User: Show my home loan balance.
-Assistant: [previous response]
-User: What is the foreclosure charge?
-Answer: rag
-Example:
-User: Show my home loan balance and explain eligibility.
-Answer: hybrid
 
-IMPORTANT:
-A previous SQL or RAG question does NOT automatically determine
-the classification of the current question.
-Always classify the CURRENT USER QUESTION based on its meaning.
 
-9. SHORT BANKING KEYWORDS
-Short banking keywords MUST NOT be classified as out_of_scope.
+-> Short banking keywords must NOT be classified as out_of_scope.
 Examples:
-Question: Home Loan
-Answer: rag
-Question: Credit Card
-Answer: rag
-Question: KYC
-Answer: rag
+"Home Loan" → rag
+"Credit Card" → rag
+"KYC" → rag
+"Gold Loan" → rag
+"Loan" → rag
+"PAN Card" → rag
 
 
-FINAL RULE
+8. FINAL RULE
 Never classify a greeting or casual conversation as rag, sql, or hybrid.
 Never classify an out-of-scope question as rag, sql, or hybrid.
 Do not classify based only on banking keywords.
+
 
 Return ONLY ONE exact value:
 rag
@@ -231,12 +265,15 @@ hybrid
 conversation
 out_of_scope
 
+
 Question:
 {question}
 
 CHAT HISTORY:
 {chat_history}
 """
+
+
 
 
 SQL_GENERATOR_PROMPT = """
@@ -271,6 +308,7 @@ If customer-specific information is requested but customer_id is
 missing, do NOT guess a customer. Return a query that cannot expose
 other customers, or indicate that customer identification is required.
 
+
 Database Schema:
 {schema}
 Current Customer ID:
@@ -278,6 +316,8 @@ Current Customer ID:
 User Question:
 {question}
 """
+
+
 
 
 SQL_VALIDATOR_PROMPT = """
@@ -306,10 +346,14 @@ IMPORTANT RULES:
     CREATE, TRUNCATE, GRANT, or REVOKE.
 12. Do not generate explanatory text outside the SQL query.
 
+
 Generated SQL:
+
 
 {sql_query}
 """
+
+
 
 
 RESPONSE_GENERATOR_PROMPT = """
@@ -330,18 +374,24 @@ Rules:
 12. If the SQL result does not contain a requested customer attribute,
 13. explicitly state that the attribute is not available in the database result.
 
+
 Question:
 {question}
+
 
 Query Type:
 {query_type}
 
+
 SQL Result:
 {sql_result}
+
 
 Retrieved Context:
 {context}
 """
+
+
 
 
 QUERY_REWRITE_PROMPT = """
@@ -355,13 +405,19 @@ Rules:
 - Return only the query.
 - be suitable for semantic and keyword search
 
+
 Original question:
 {question}
 Return only the rewritten search query.
 
+
 Current search query:
 {search_query}
+
 
 Previous alternate queries:
 {previous_queries}
 """
+
+
+

@@ -19,6 +19,20 @@ from src.api.v1.tools.sql_tool import (
 )
 
 
+
+
+def conversation_node(state: RAGState) -> RAGState:
+    state["answer"] = (
+        "Hello! I can help you with Smart Banking related "
+        "questions, including banking products, policies, "
+        "customer accounts, transactions, loans, cards, "
+        "and related information."
+    )
+    return state
+
+
+
+
 def route_query(state: RAGState):
     """
     Routes the classified query to the appropriate graph path.
@@ -36,38 +50,6 @@ def route_query(state: RAGState):
     return query_type
 
 
-def conversation_node(state: RAGState) -> RAGState:
-    llm = get_llm()
-    history = state.get("chat_history") or []
-    print("CONVERSATION HISTORY:", history)
-    messages = [
-        {
-            "role": "system",
-            "content": """
-            You are a Smart Banking Assistant.
-            For conversation queries:
-            - Use the conversation history.
-            - Remember information explicitly provided by the user.
-            - If the user says anything remember that name.
-            - If the user asks answer using the conversation history.
-            - Do not use RAG.
-            - Do not use SQL.
-            - Do not invent information.
-            """,
-        }
-    ]
-    messages.extend(history)
-    messages.append({"role": "user", "content": state["question"]})
-    response = llm.invoke(messages)
-    answer = response.content
-    state["answer"] = answer
-    state["confidence_score"] = 1.0
-    # Persist this turn
-    history.append(HumanMessage(content=state["question"]))
-    history.append(AIMessage(content=answer))
-    state["chat_history"] = history
-    # print("CONVERSATION RESPONSE:", repr(answer))
-    return state
 
 
 def out_of_scope_node(state: RAGState) -> RAGState:
@@ -81,7 +63,11 @@ def out_of_scope_node(state: RAGState) -> RAGState:
     return state
 
 
-RETRY_THRESHOLD = 0.10
+
+
+RETRY_THRESHOLD = 0.50
+
+
 
 
 def check_retrieval(state: RAGState):
@@ -117,6 +103,8 @@ def check_retrieval(state: RAGState):
     return "response"
 
 
+
+
 def retry_search_node(state: RAGState) -> RAGState:
     """
     Generates an alternate search query.
@@ -142,6 +130,8 @@ def retry_search_node(state: RAGState) -> RAGState:
     return state
 
 
+
+
 def route_after_retry(state: RAGState):
     """
     Routes the rewritten query back to the correct
@@ -157,6 +147,8 @@ def route_after_retry(state: RAGState):
     return "search"
 
 
+
+
 def hybrid_search_node(state: RAGState) -> RAGState:
     """
     Executes the RAG portion of a Hybrid query.
@@ -166,7 +158,9 @@ def hybrid_search_node(state: RAGState) -> RAGState:
     return search_tool(state)
 
 
-def merge_context_tool(state: RAGState) -> RAGState:
+
+
+def sql_pipeline_node(state: RAGState) -> RAGState:
     """
     Combines RAG and SQL results for Hybrid queries.
     """
@@ -182,11 +176,16 @@ def merge_context_tool(state: RAGState) -> RAGState:
     return state
 
 
-def route_after_sql(state: RAGState):
-    query_type = state.get("query_type", "")
-    if query_type == "hybrid":
-        return "merge_context"
-    return "response"
+
+
+def merge_context_tool(state: RAGState) -> RAGState:
+    """
+    Combines RAG and SQL results for hybrid queries.
+    """
+    state["reranked_chunks"]
+    return state
+
+
 
 
 def build_graph():
@@ -202,6 +201,7 @@ def build_graph():
     workflow.add_node("sql_executor", sql_executor_tool)
     workflow.add_node("merge_context", merge_context_tool)
     workflow.add_node("response_generator", response_generator_tool)
+
 
     workflow.add_edge(START, "classifier")
     workflow.add_conditional_edges(
@@ -241,6 +241,14 @@ def build_graph():
     )
     workflow.add_edge("sql_generator", "sql_validator")
     workflow.add_edge("sql_validator", "sql_executor")
+
+
+    def route_after_sql(state: RAGState):
+        if state["query_type"] == "hybrid":
+            return "merge_context"
+        return "response"
+
+
     workflow.add_conditional_edges(
         "sql_executor",
         route_after_sql,
@@ -254,7 +262,10 @@ def build_graph():
     workflow.add_edge("conversation", END)
     workflow.add_edge("out_of_scope", END)
 
-    return workflow.compile(checkpointer=checkpointer)
+
+    return workflow.compile()
+
+
 
 
 banking_agent = build_graph()
@@ -265,12 +276,9 @@ with open("banking_agent.png", "wb") as f:
     f.write(graph_image)
 
 
-def invoke(
-    question: str,
-    account_id: str | None = None,
-    thread_id: str | None = None,
-):
 
+
+def invoke(question: str):
     state = RAGState(
         question=question,
         search_query=question,
@@ -302,3 +310,9 @@ def invoke(
         state,
         config=config,
     )
+
+
+    return banking_agent.invoke(state)
+
+
+

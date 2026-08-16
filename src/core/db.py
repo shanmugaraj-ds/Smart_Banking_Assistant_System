@@ -6,13 +6,17 @@ from langchain_community.utilities import SQLDatabase
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+
 load_dotenv()
+
 
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PG_RAG_CONNECTION = os.getenv("PG_VECTOR_CONNECTION_STRING")
 PG_RDBMS_CONNECTION = os.getenv("PG_RDBMS_CONNECTION_STRING")
 SQL_DATABASE_URI = os.getenv("SQL_DATABASE_URI")
+
+
 
 
 def get_embeddings():
@@ -22,16 +26,22 @@ def get_embeddings():
     )
 
 
+
+
 def get_vector_engine() -> Engine:
     if not PG_RAG_CONNECTION:
         raise ValueError("PG_VECTOR_CONNECTION_STRING is not set.")
     return create_engine(PG_RAG_CONNECTION)
 
 
+
+
 def get_connection():
     if not PG_RAG_CONNECTION:
         raise ValueError("PG_VECTOR_CONNECTION_STRING is not set.")
     return psycopg.connect(PG_RAG_CONNECTION)
+
+
 
 
 def initialize_smart_banking_db():
@@ -103,6 +113,8 @@ def initialize_smart_banking_db():
     print("Smart Banking DB schema initialized successfully.")
 
 
+
+
 def get_sql_database() -> SQLDatabase:
     if not SQL_DATABASE_URI:
         raise ValueError("SQL_DATABASE_URI is not set.")
@@ -117,3 +129,5 @@ def get_sql_database() -> SQLDatabase:
             "loan_accounts",
         ],
     )
+
+
